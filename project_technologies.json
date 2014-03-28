@@ -1,10 +1,10 @@
 {
     "technologies": {
         "apis": [
-            "Google Static Maps"
+            "maps",
         ],
         "platforms": [
-            "insert platforms"
+            "chrome"
         ],
         "toolkits": [
             "webgl", "jquery"

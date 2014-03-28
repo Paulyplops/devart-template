@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Experiment 5</title>
+<title>Experiment 6</title>
 <script type="text/javascript" src="jquery-2.1.0.js"></script>
 <script type="text/javascript" src="webgl-utils.js"></script>
 <script type="text/javascript">
@@ -31,7 +31,7 @@ $(window).load( function()
 {
   var w = $(window).width();
   var h = $(window).height();
-  var googleMap = "https://maps.google.com/maps/api/staticmap?sensor=false&center=51.749361,-1.240467&zoom=17&size=800x800&style=feature:all%7Celement:all%7Cvisibility:off&style=feature:road%7Celement:geometry%7Ccolor:0x00ff00%7Cweight:1%7Cvisibility:on";
+  var googleMap = "https://maps.google.com/maps/api/staticmap?sensor=false&center=51.749361,-1.240467&zoom=16&size=512x512&style=feature:all%7Celement:all%7Cvisibility:off&style=feature:road%7Celement:geometry%7Ccolor:0xff0000%7Cweight:1%7Cvisibility:on";
   var image= new Image();
   image.onload = function(){ 
     loaded( image );
@@ -46,8 +46,101 @@ function loaded( image )
   var w = $(window).width();
   var h = $(window).height();
 
-  // w = 255;
-  // h = 255;
+  // Use an off-screen canvas to do some simple image processing on the 
+  // map provided.
+
+  var mapCanvas = document.createElement('canvas');
+  mapCanvas.width = image.width;
+  mapCanvas.height = image.height;
+  var ctxMap = mapCanvas.getContext("2d");
+  ctxMap.drawImage( image, 0, 0 );
+
+  // Dilate the image.
+  {
+    var mw = mapCanvas.width;
+    var mh = mapCanvas.height;
+
+    var imageData = ctxMap.getImageData( 0, 0, mw, mh );
+    var newData = ctxMap.createImageData( mw, mh );
+
+    var kernelSize = 17;
+    var halfKernelSize = Math.floor( kernelSize / 2 );
+    var radius = kernelSize * 0.55;
+    var kernel = [];    
+
+    // Draw a circle in the kernel.
+
+    for( var b = -halfKernelSize; b <= halfKernelSize; ++b )
+      for( var a = -halfKernelSize; a <= halfKernelSize; ++a )
+      {
+        var q = ( b + halfKernelSize ) * kernelSize + a + halfKernelSize;
+        if( a * a + b * b < radius * radius )
+          kernel[q] = 1;
+        else
+          kernel[q] = 0;
+      }
+
+    // Dilate
+
+    for( var j = 0; j < mh; ++j )
+    {
+      for( var i = 0; i < mw; ++i )
+      {
+        // Base feed.
+        var t = 80 + Math.random() * 80;
+
+        // Clamp kernel to image boundaries.
+        var aMin = Math.max( -halfKernelSize, -i );
+        var aMax = Math.min( halfKernelSize, mw-i );
+        var bMin = Math.max( -halfKernelSize, -j );
+        var bMax = Math.min( halfKernelSize, mw-j );
+
+        // Update indexes rather than re-calculating.
+        var p = ( ( j + bMin ) * mw + i + aMin ) * 4;
+        var q = ( bMin + halfKernelSize ) * kernelSize + aMin + halfKernelSize;
+
+        // Early-out on finding something.
+        for( var b = bMin; b <= bMax && t < 255; ++b )
+        {
+          for( var a = aMin; a <= aMax && t < 255; ++a )
+          {
+            /*
+            // Check indexing sums.
+            var p2 = ( ( j + b ) * mw + i + a ) * 4;
+            var q2 = ( b + halfKernelSize ) * kernelSize + a + halfKernelSize;
+
+            if( ( q != q2 || p != p2 ) )
+              alert("Assert");
+            */
+            
+            t = Math.max( imageData.data[ p ] * kernel[ q ], t );
+            p += 4;
+            q += 1;
+          }
+
+          // Back up.
+          p -= ( aMax - aMin + 1) * 4;
+          q -= aMax - aMin + 1;
+
+          // Down a row.
+          p += mw * 4;
+          q += kernelSize;
+        }
+
+        // Set output.
+        {
+          var p = ( j * mw + i ) * 4;
+
+          newData.data[ p + 0 ] = t;
+          newData.data[ p + 1 ] = 0;
+          newData.data[ p + 2 ] = 0;
+          newData.data[ p + 3 ] = 255;
+        }
+      }
+    }
+
+    ctxMap.putImageData( newData, 0, 0 ); 
+  }
 
   // Make an off-screen canvas used to seed the simulation.
   // The concentration of the two chemicals is represented by 
@@ -59,69 +152,51 @@ function loaded( image )
 
   var ctx = offscreenCanvas.getContext("2d");
 
-
-  if( false )
-  {
-
-    var imageData = ctx.getImageData( 0, 0, w, h );
-
-    for( var i = 0; i < w; ++i )
-    {
-      for( var j = 0; j < h; ++j )
-      {
-         var p = ( j * w + i ) * 4;
-
-         var r = imageData.data[ p + 0 ];
-         var g = imageData.data[ p + 1 ];
-         var b = imageData.data[ p + 2 ];
-
-         imageData.data[ p + 0 ] = 255;
-         imageData.data[ p + 1 ] = g;
-         imageData.data[ p + 2 ] = b;
-         imageData.data[ p + 3 ] = 255;
-      }
-    }
-
-    ctx.putImageData( imageData, 0, 0 ); 
-  }
-
-  // Uniform red.
-  ctx.fillStyle = "rgba( 255, 0, 0, 1.0 )";  
+  // Uniform black background.
+  ctx.fillStyle = "rgba( 0, 0, 0, 1.0 )";  
   ctx.fillRect( 0, 0, w, h );  
 
+  // Scale image uniformly to fill window.
+  // It is expected to spill out of the top and bottom or sides.
+
   var s = Math.max( w / image.width, h / image.height );
-  ctx.drawImage( image, 0, h * 0.5 - image.height * s * 0.5, image.width * s, image.height * s );
-  // Random red.
-  if( false )
+  ctx.drawImage( mapCanvas, 0, h * 0.5 - image.height * s * 0.5, image.width * s, image.height * s );
+
+
+  // Construct a canvas for the initial simulation state.
+  // This is the same as the food canvas, but has a 
+  // seed blob.
+ 
+  var initCanvas = document.createElement('canvas');
+  initCanvas.width = w;
+  initCanvas.height = h;
+
+  // Copy the food canvas.
+  var ctx2 = initCanvas.getContext("2d");
+  ctx2.putImageData( ctx.getImageData( 0, 0, w, h ), 0, 0 );
+
+  // Find a central area that has enough food to support the 
+  // seed.
+  var tries = 100;
+  var i; 
+  for( i = 10; i < tries; ++i )
   {
+    // Pick random points from the centre of the image.
+    // We cast wider as we try longer.
+    var x = 0.5 * w + ( Math.random() - 0.5 ) * w * i / tries;
+    var y = 0.5 * h + ( Math.random() - 0.5 ) * h * i / tries;
 
-    var imageData = ctx.createImageData( w, h );
-
-    for( var i = 0; i < w; ++i )
+    var pixel = ctx2.getImageData( x, y, 1, 1 ).data;
+    if( pixel[0] > 254 )
     {
-      for( var j = 0; j < h; ++j )
-      {
-         var p = ( j * w + i ) * 4;
-
-         imageData.data[ p + 0 ] = Math.random() * 255;
-         imageData.data[ p + 1 ] = 0;
-         imageData.data[ p + 2 ] = 0;
-         imageData.data[ p + 3 ] = 255;
-      }
+      // See yellow blob.
+      ctx2.fillStyle = "rgba( 255, 255, 0, 1.0 )";
+      var blobRadius = 2;
+      ctx2.beginPath();
+      ctx2.arc( x, y, blobRadius, 0, 2 * Math.PI);
+      ctx2.fill();
+      break;
     }
-
-    ctx.putImageData( imageData, 0, 0 ); 
-  }
-
-  // Random green blobs.
-  ctx.fillStyle = "rgba( 255, 255, 0, 1.0 )";
-  var blobs = w / 50;
-  blobs = 0;
-  var blobRadius = 2;
-  for( var i = 0; i < blobs; ++i ) {
-    ctx.beginPath();
-    ctx.arc( Math.random() * w, Math.random() * h, blobRadius, 0, 2 * Math.PI);
-    ctx.fill();
   }
 
   // Set the width and height of the display canvas to the 
@@ -146,6 +221,16 @@ function loaded( image )
   program = createProgram(gl, [vertexShader, fragmentShader]);
   gl.useProgram(program);
 
+
+  var workLocation = gl.getUniformLocation(program, "u_imageWork");
+  var foodLocation = gl.getUniformLocation(program, "u_imageFood");
+
+  // tell u_imageWork to use texture unit #0
+  gl.uniform1i(workLocation, 0);
+
+  // tell u_imageFood to use texture unit #1
+  gl.uniform1i(foodLocation, 1);  
+
   // look up where the vertex data needs to go.
   var positionLocation = gl.getAttribLocation(program, "a_position");
   var texCoordLocation = gl.getAttribLocation(program, "a_texCoord");
@@ -166,6 +251,9 @@ function loaded( image )
   // Create a texture and put the image in it.
   var originalImageTexture = createAndSetupTexture(gl);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, ctx.getImageData( 0, 0, w, h ) );
+
+  var initialImageTexture = createAndSetupTexture(gl);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, ctx2.getImageData( 0, 0, w, h ) );
 
   // create 2 textures and attach them to framebuffers.
   var textures = [];
@@ -221,10 +309,10 @@ function loaded( image )
   gl.uniform2f( diffusionLocation, 1.0, 0.5 );
 
   // The rate that G dies off.
-  gl.uniform1f( killLocation, 0.062 );
+  gl.uniform1f( killLocation, 0.057 );
 
   // The rate that R is fed into the system.
-  gl.uniform1f( feedLocation, 0.037 );
+  gl.uniform1f( feedLocation, 0.047 );
 
   // Time-step
   gl.uniform1f( timeDeltaLocation, 5.0 );
@@ -300,14 +388,26 @@ function loaded( image )
 
   gl.useProgram( program );
   // start with the original image
-  gl.bindTexture(gl.TEXTURE_2D, originalImageTexture);
 
+// Set each texture unit to use a particular texture.
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, originalImageTexture);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, initialImageTexture);
+
+  var decayRate = 0.001 * 0.05 / w;
+  
   function Anim( time )
   {
     gl.useProgram( program );
 
-    var rate = 2;
-    for( var i = 0; i < rate; ++i )
+    var now = new Date().getTime();
+    var decay = ( now - start ) * decayRate;
+    gl.uniform1f( killLocation, 0.06 + decay );
+    // gl.uniform1f( feedLocation, 0.05 - decay );
+
+    var iterations = 4;
+    for( var i = 0; i < iterations; ++i )
     {
       // Setup to draw into one of the framebuffers.
       setFramebuffer(framebuffers[i % 2], w, h);
@@ -324,7 +424,7 @@ function loaded( image )
 
 
     gl.useProgram( programDisp );
-    gl.bindTexture( gl.TEXTURE_2D, textures[( rate  - 1 ) % 2] );
+    gl.bindTexture( gl.TEXTURE_2D, textures[( iterations  - 1 ) % 2] );
     // finally draw the result to the canvas.
     setFramebuffer(null, canvas.width, canvas.height);
 
@@ -335,7 +435,7 @@ function loaded( image )
     requestAnimFrame( Anim );
   }
 
-  var lastTime = new Date().getTime();
+  var start = new Date().getTime();
   requestAnimFrame( Anim );
 }
 
@@ -393,7 +493,9 @@ void main() {
 precision mediump float;
 
 // our texture
-uniform sampler2D u_image;
+uniform sampler2D u_imageWork;
+uniform sampler2D u_imageFood;
+
 uniform vec2 u_textureSize;
 
 uniform float u_kernel[9];
@@ -411,26 +513,28 @@ void main() {
 
   // Laplacian is difference between the this sample and the average neighbour.
   vec4 laplacian =
-     texture2D(u_image, v_texCoord + onePixel * vec2(-1, -1)) * u_kernel[0] +
-     texture2D(u_image, v_texCoord + onePixel * vec2( 0, -1)) * u_kernel[1] +
-     texture2D(u_image, v_texCoord + onePixel * vec2( 1, -1)) * u_kernel[2] +
-     texture2D(u_image, v_texCoord + onePixel * vec2(-1,  0)) * u_kernel[3] +
-     texture2D(u_image, v_texCoord + onePixel * vec2( 0,  0)) * u_kernel[4] +
-     texture2D(u_image, v_texCoord + onePixel * vec2( 1,  0)) * u_kernel[5] +
-     texture2D(u_image, v_texCoord + onePixel * vec2(-1,  1)) * u_kernel[6] +
-     texture2D(u_image, v_texCoord + onePixel * vec2( 0,  1)) * u_kernel[7] +
-     texture2D(u_image, v_texCoord + onePixel * vec2( 1,  1)) * u_kernel[8] ;
+     texture2D(u_imageWork, v_texCoord + onePixel * vec2(-1, -1)) * u_kernel[0] +
+     texture2D(u_imageWork, v_texCoord + onePixel * vec2( 0, -1)) * u_kernel[1] +
+     texture2D(u_imageWork, v_texCoord + onePixel * vec2( 1, -1)) * u_kernel[2] +
+     texture2D(u_imageWork, v_texCoord + onePixel * vec2(-1,  0)) * u_kernel[3] +
+     texture2D(u_imageWork, v_texCoord + onePixel * vec2( 0,  0)) * u_kernel[4] +
+     texture2D(u_imageWork, v_texCoord + onePixel * vec2( 1,  0)) * u_kernel[5] +
+     texture2D(u_imageWork, v_texCoord + onePixel * vec2(-1,  1)) * u_kernel[6] +
+     texture2D(u_imageWork, v_texCoord + onePixel * vec2( 0,  1)) * u_kernel[7] +
+     texture2D(u_imageWork, v_texCoord + onePixel * vec2( 1,  1)) * u_kernel[8] ;
 
-  vec4 sample = texture2D(u_image, v_texCoord );
+  vec4 sample = texture2D( u_imageWork, v_texCoord );
+
+  float feed = texture2D( u_imageFood, v_texCoord ).r * u_feed;
 
   float r = sample.r 
             + ( u_diffusion.r * laplacian.r * u_spaceDelta
             - sample.r * sample.g * sample.g
-            + u_feed * ( 1.0 - sample.r ) ) * u_timeDelta;
+            + feed * ( 1.0 - sample.r ) ) * u_timeDelta;
   float g = sample.g 
             + ( u_diffusion.g * laplacian.g * u_spaceDelta 
             + sample.r * sample.g * sample.g 
-            - ( u_kill + u_feed ) * sample.g ) * u_timeDelta;
+            - ( u_kill + feed ) * sample.g ) * u_timeDelta;
   float b = sample.b;
 
   gl_FragColor = vec4( r, g, b, 1.0);
@@ -469,15 +573,16 @@ void main() {
 precision mediump float;
 
 // our texture
-uniform sampler2D u_image;
+uniform sampler2D u_imageWork;
 
 // the texCoords passed in from the vertex shader.
 varying vec2 v_texCoord;
 
 void main() {
-  vec4 sample = texture2D(u_image, v_texCoord );
+  vec4 sample = texture2D(u_imageWork, v_texCoord );
   float v = sample.g * 3.0;
   gl_FragColor = vec4( v, v, v, 1.0);
+  // gl_FragColor = vec4( sample.r, sample.g, sample.b, 1.0);
 }
 
 </script>
