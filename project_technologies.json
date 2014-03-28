@@ -4,7 +4,7 @@
             "maps",
         ],
         "platforms": [
-            "chrome"
+            "windows", "linux", "osx"
         ],
         "toolkits": [
             "webgl", "jquery"
