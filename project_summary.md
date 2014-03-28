@@ -5,7 +5,7 @@ Endemic
 
 ## Description
 
-MRSA - Methicillin-Resistant Staphylococcus Aureus a bacteria almost all of us carry on our skin.  Since the 1940s the bacterium mutated as it became accustomed to antibiotic drugs.  Hospitals have become the battle ground between infection and our ability to control it seems to be tipping out of our favour.  
+MRSA - Methicillin-Resistant Staphylococcus Aureus is a bacteria almost all of us carry on our skin.  Since the 1940s the bacterium mutated as it became accustomed to antibiotic drugs.  Hospitals have become the battle ground of infection.  Our ability to control it seems to be tipping out of our favour.  
 
 The piece connects the organic growth, replication and mutation with its geography.
 
