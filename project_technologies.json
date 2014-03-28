@@ -1,16 +1,16 @@
 {
     "technologies": {
         "apis": [
-            "insert apis"
+            "Google Static Maps"
         ],
         "platforms": [
             "insert platforms"
         ],
         "toolkits": [
-            "insert toolkits"
+            "webgl", "jquery"
         ]
     },
     "themes": [
-        "insert themes"
+        "organic", "geographical"
     ]
 }

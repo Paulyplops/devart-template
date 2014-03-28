@@ -1,20 +1,24 @@
 # Project Title
-Insert the name of your project
+Endemic
 
 ## Authors
-- Insert main author name, surname, github account
-- Insert other author(s) name, surname, github account (one per list element)
+- Paul Tate, https://github.com/Paulyplops
 
 ## Description
-Insert a description containing about 100 to 150 words, including your motivation and the meaning behind your idea and execution. The Judges will be keen to know how your idea pushes the boundaries of code and technology. 
+
+MRSA - Methicillin-Resistant Staphylococcus Aureus a bacteria almost all of us carry on our skin.  Since the 1940s the bacterium mutated as it became accustomed to antibiotic drugs.  Hospitals have become the battle ground between infection and our ability to control it seems to be tipping out of our favour.  
+
+The piece connects the organic growth, replication and mutation with its geography.
+
+I use a simple biological simulation to represent the mutating bacteria.  The simulation is processor intensive - but lends itself to computation on the GPU.  WebGL technology is used to run the simulation at speed.  
+
+As MRSA data is posted, this will be harvested and guide the animations live.
 
 ## Link to Prototype
-NOTE: If your project lives online you can add one or more links here. Make sure you have a stable version of your project running before linking it.
 
-[Example Link](http://www.google.com "Example Link")
+[Experiment 4](https://dl.dropboxusercontent.com/u/263160/Web/WebGl/Experiment4.html)
 
 ## Example Code
-NOTE: Wrap your code blocks or any code citation by using ``` like the example below.
 ```
 function test() {
   console.log("Printing a test");
@@ -23,11 +27,13 @@ function test() {
 ## Links to External Libraries
  NOTE: You can also use this space to link to external libraries or Github repositories you used on your project.
 
-[Example Link](http://www.google.com "Example Link")
+[Example Link](https://developers.google.com/maps/documentation/staticmaps/ "Static Maps")
 
 ## Images & Videos
 NOTE: For additional images you can either use a relative link to an image on this repo or an absolute link to an externally hosted image.
 
-![Example Image](project_images/cover.jpg?raw=true "Example Image")
+A ceramic tile in the Ashmolean Museum.  Actually decorative calligraphy. 
 
-https://www.youtube.com/watch?v=30yGOxJJ2PQ
+![Inspiration](project_images/tile.jpg?raw=true "Tile")
+
+
