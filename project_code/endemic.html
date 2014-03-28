@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Experiment 4</title>
+<title>Experiment 5</title>
 <script type="text/javascript" src="jquery-2.1.0.js"></script>
 <script type="text/javascript" src="webgl-utils.js"></script>
 <script type="text/javascript">
@@ -31,6 +31,20 @@ $(window).load( function()
 {
   var w = $(window).width();
   var h = $(window).height();
+  var googleMap = "https://maps.google.com/maps/api/staticmap?sensor=false&center=51.749361,-1.240467&zoom=17&size=800x800&style=feature:all%7Celement:all%7Cvisibility:off&style=feature:road%7Celement:geometry%7Ccolor:0x00ff00%7Cweight:1%7Cvisibility:on";
+  var image= new Image();
+  image.onload = function(){ 
+    loaded( image );
+    };
+  image.crossOrigin = '';
+  image.src = googleMap;
+  
+});
+
+function loaded( image )
+{
+  var w = $(window).width();
+  var h = $(window).height();
 
   // w = 255;
   // h = 255;
@@ -45,10 +59,38 @@ $(window).load( function()
 
   var ctx = offscreenCanvas.getContext("2d");
 
+
+  if( false )
+  {
+
+    var imageData = ctx.getImageData( 0, 0, w, h );
+
+    for( var i = 0; i < w; ++i )
+    {
+      for( var j = 0; j < h; ++j )
+      {
+         var p = ( j * w + i ) * 4;
+
+         var r = imageData.data[ p + 0 ];
+         var g = imageData.data[ p + 1 ];
+         var b = imageData.data[ p + 2 ];
+
+         imageData.data[ p + 0 ] = 255;
+         imageData.data[ p + 1 ] = g;
+         imageData.data[ p + 2 ] = b;
+         imageData.data[ p + 3 ] = 255;
+      }
+    }
+
+    ctx.putImageData( imageData, 0, 0 ); 
+  }
+
   // Uniform red.
   ctx.fillStyle = "rgba( 255, 0, 0, 1.0 )";  
   ctx.fillRect( 0, 0, w, h );  
 
+  var s = Math.max( w / image.width, h / image.height );
+  ctx.drawImage( image, 0, h * 0.5 - image.height * s * 0.5, image.width * s, image.height * s );
   // Random red.
   if( false )
   {
@@ -74,6 +116,7 @@ $(window).load( function()
   // Random green blobs.
   ctx.fillStyle = "rgba( 255, 255, 0, 1.0 )";
   var blobs = w / 50;
+  blobs = 0;
   var blobRadius = 2;
   for( var i = 0; i < blobs; ++i ) {
     ctx.beginPath();
@@ -215,7 +258,7 @@ $(window).load( function()
 
   // Display Program - - - - - - - - - - - -
 
-  vertexShaderDisp = createShaderFromScriptElement(gl, "2d-vertex-shader");
+  vertexShaderDisp = createShaderFromScriptElement(gl, "2d-vertex-shader-disp");
   fragmentShaderDisp = createShaderFromScriptElement(gl, "2d-fragment-shader-disp");
 
   programDisp = createProgram(gl, [vertexShaderDisp, fragmentShaderDisp]);
@@ -261,7 +304,8 @@ $(window).load( function()
 
   function Anim( time )
   {
-    // Why doesn't this work for rate 1?
+    gl.useProgram( program );
+
     var rate = 2;
     for( var i = 0; i < rate; ++i )
     {
@@ -280,7 +324,7 @@ $(window).load( function()
 
 
     gl.useProgram( programDisp );
-    gl.bindTexture( gl.TEXTURE_2D, textures[rate % 2] );
+    gl.bindTexture( gl.TEXTURE_2D, textures[( rate  - 1 ) % 2] );
     // finally draw the result to the canvas.
     setFramebuffer(null, canvas.width, canvas.height);
 
@@ -288,13 +332,12 @@ $(window).load( function()
     // Draw the rectangle.
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    gl.useProgram( program );
     requestAnimFrame( Anim );
   }
 
   var lastTime = new Date().getTime();
   requestAnimFrame( Anim );
-});
+}
 
 
 // Fills the buffer with the values that define a rectangle.
@@ -394,7 +437,33 @@ void main() {
 }
 
 </script>
+<!-- vertex shader -->
+<script id="2d-vertex-shader-disp" type="x-shader/x-vertex">
+attribute vec2 a_position;
+attribute vec2 a_texCoord;
 
+uniform vec2 u_resolution;
+
+varying vec2 v_texCoord;
+
+void main() {
+   // convert the rectangle from pixels to 0.0 to 1.0
+   vec2 zeroToOne = a_position / u_resolution;
+
+   // convert from 0->1 to 0->2
+   vec2 zeroToTwo = zeroToOne * 2.0;
+
+   // convert from 0->2 to -1->+1 (clipspace)
+   vec2 clipSpace = zeroToTwo - 1.0;
+
+   gl_Position = vec4(clipSpace.x, -clipSpace.y, 0, 1);
+
+   // pass the texCoord to the fragment shader
+   // The GPU will interpolate this value between points.
+   v_texCoord = a_texCoord;
+}
+
+</script>
 <!-- fragment shader -->
 <script id="2d-fragment-shader-disp" type="x-shader/x-fragment">
 precision mediump float;
