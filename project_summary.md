@@ -1,4 +1,3 @@
-# Project Title
 Endemic
 
 ## Authors
@@ -14,25 +13,11 @@ I use a simple biological simulation to represent the mutating bacteria.  The si
 
 As MRSA data is posted, this will be harvested and guide the animations live.
 
-## Link to Prototype
-
-[Experiment 4](https://dl.dropboxusercontent.com/u/263160/Web/WebGl/Experiment4.html)
-
-## Example Code
-```
-function test() {
-  console.log("Printing a test");
-}
-```
-## Links to External Libraries
- NOTE: You can also use this space to link to external libraries or Github repositories you used on your project.
-
 [Example Link](https://developers.google.com/maps/documentation/staticmaps/ "Static Maps")
 
-## Images & Videos
-NOTE: For additional images you can either use a relative link to an image on this repo or an absolute link to an externally hosted image.
+## Images & Inspiration
 
-A ceramic tile in the Ashmolean Museum.  Actually decorative calligraphy. 
+A ceramic tile in the Ashmolean Museum.  On first inspection this appears to be random space-filling, but is actually decorative calligraphy. 
 
 ![Inspiration](project_images/tile.jpg?raw=true "Tile")
 

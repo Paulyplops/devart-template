@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Experiment 1</title>
+<title>Experiment 3</title>
 <script type="text/javascript" src="jquery-2.1.0.js"></script>
 <script type="text/javascript" src="webgl-utils.js"></script>
 <script type="text/javascript">
@@ -12,16 +12,85 @@ $(document).ready( function()
 {
 } );
 
+
+function createAndSetupTexture(gl) {
+  var texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  // Set up texture so we can render any size image and so we are
+  // working with pixels.
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+  return texture;
+}
+
 $(window).load( function()
 {
   var w = $(window).width();
   var h = $(window).height();
+
+  // w = 255;
+  // h = 255;
+
+  // Make an off-screen canvas used to seed the simulation.
+  // The concentration of the two chemicals is represented by 
+  // the red and green channels.
+
+  var offscreenCanvas = document.createElement('canvas');
+  offscreenCanvas.width = w;
+  offscreenCanvas.height = h;
+
+  var ctx = offscreenCanvas.getContext("2d");
+
+  // Uniform red.
+  ctx.fillStyle = "rgba( 255, 0, 0, 1.0 )";  
+  ctx.fillRect( 0, 0, w, h );  
+
+  // Random red.
+  if( false )
+  {
+
+    var imageData = ctx.createImageData( w, h );
+
+    for( var i = 0; i < w; ++i )
+    {
+      for( var j = 0; j < h; ++j )
+      {
+         var p = ( j * w + i ) * 4;
+
+         imageData.data[ p + 0 ] = Math.random() * 255;
+         imageData.data[ p + 1 ] = 0;
+         imageData.data[ p + 2 ] = 0;
+         imageData.data[ p + 3 ] = 255;
+      }
+    }
+
+    ctx.putImageData( imageData, 0, 0 ); 
+  }
+
+  // Random green blobs.
+  ctx.fillStyle = "rgba( 255, 255, 0, 1.0 )";
+  var blobs = w / 50;
+  var blobRadius = 2;
+  for( var i = 0; i < blobs; ++i ) {
+    ctx.beginPath();
+    ctx.arc( Math.random() * w, Math.random() * h, blobRadius, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+
+  // Set the width and height of the display canvas to the 
+  // entire window.
 
   $("#canvas").width( w );
   $("#canvas").height( h );
   var canvas = $('#canvas')[0];
   canvas.width = w;
   canvas.height = h;
+ 
+  // Set up WebGL.
 
   var gl = getWebGLContext(canvas);
   if (!gl) {
@@ -36,37 +105,149 @@ $(window).load( function()
 
   // look up where the vertex data needs to go.
   var positionLocation = gl.getAttribLocation(program, "a_position");
+  var texCoordLocation = gl.getAttribLocation(program, "a_texCoord");
 
+  // Provide texture coordinates for the rectangle.
+  var texCoordBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+      0.0,  0.0,
+      1.0,  0.0,
+      0.0,  1.0,
+      0.0,  1.0,
+      1.0,  0.0,
+      1.0,  1.0]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(texCoordLocation);
+  gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+
+  // Create a texture and put the image in it.
+  var originalImageTexture = createAndSetupTexture(gl);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, ctx.getImageData( 0, 0, w, h ) );
+
+  // create 2 textures and attach them to framebuffers.
+  var textures = [];
+  var framebuffers = [];
+  for (var ii = 0; ii < 2; ++ii) {
+    var texture = createAndSetupTexture(gl);
+    textures.push(texture);
+
+    // make the texture the same size as the image
+    gl.texImage2D(
+        gl.TEXTURE_2D, 0, gl.RGB, w, h, 0,
+        gl.RGB, gl.UNSIGNED_BYTE, null);
+
+    // Create a framebuffer
+    var fbo = gl.createFramebuffer();
+    framebuffers.push(fbo);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+
+    // Attach a texture to it.
+    gl.framebufferTexture2D(
+        gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  }
+
+  // Lookup uniforms.
+  // Housekeeping.
   var resolutionLocation = gl.getUniformLocation(program, "u_resolution");
+  var textureSizeLocation = gl.getUniformLocation(program, "u_textureSize");
+
+  // Parameters for the simulation.
+  var kernelLocation = gl.getUniformLocation(program, "u_kernel[0]");
+  var diffusionLocation = gl.getUniformLocation(program, "u_diffusion");
+  var killLocation = gl.getUniformLocation(program, "u_kill");
+  var feedLocation = gl.getUniformLocation(program, "u_feed");
+  var timeDeltaLocation = gl.getUniformLocation(program, "u_timeDelta");
+  var spaceDeltaLocation = gl.getUniformLocation(program, "u_spaceDelta");
+
+  var laplacianKernel = [
+      0.05, 0.2, 0.05,
+      0.2,   -1,  0.2,
+      0.05, 0.2, 0.05
+  ]
+
+  var laplacianSimpleKernel = [
+      0.0,  0.25,  0.0,
+      0.25,   -1, 0.25,
+      0.0,  0.25,  0.0
+  ]
+
+  // The laplacian.
+  gl.uniform1fv( kernelLocation, laplacianKernel );
+
+  // The diffusion is the rates of the two chemicals. ( D_R, D_G )
+  gl.uniform2f( diffusionLocation, 1.0, 0.5 );
+
+  // The rate that G dies off.
+  gl.uniform1f( killLocation, 0.062 );
+
+  // The rate that R is fed into the system.
+  gl.uniform1f( feedLocation, 0.037 );
+
+  // Time-step
+  gl.uniform1f( timeDeltaLocation, 5.2 );
+  
+  // Space delta.
+  gl.uniform1f( spaceDeltaLocation, 0.2 );
+
+  // set the resolution
   gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
 
-  // Set the colour in the fragment shader.
-  var colorLocation = gl.getUniformLocation(program, "u_color");
+  // set the size of the image
+  gl.uniform2f(textureSizeLocation, w, h);
 
-
-  // Create a buffer and put a single clipspace rectangle in
-  // it (2 triangles)
+  // Create a buffer for the position of the rectangle corners.
   var buffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.enableVertexAttribArray(positionLocation);
   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
-  for( var x = 0; x < w - 50; x += 50 )
-  {
-    for( var y = 0; y < h - 50; y += 50 )
-    {
-      setRectangle( gl, x + 10, y + 10, 30, 30 );
-      gl.uniform4f(colorLocation, Math.random(), Math.random(), Math.random(), 1);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-    }
+  // Set a rectangle the same size as the image.
+  setRectangle(gl, 0, 0, w, h);
+
+  function setFramebuffer(fbo, width, height) {
+    // make this the framebuffer we are rendering to.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+
+    // Tell the shader the resolution of the framebuffer.
+    gl.uniform2f(resolutionLocation, width, height);
+
+    // Tell webgl the viewport setting needed for framebuffer.
+    gl.viewport(0, 0, width, height);
   }
 
+  // start with the original image
+  gl.bindTexture(gl.TEXTURE_2D, originalImageTexture);
+
+  function Anim( time )
+  {
+    var rate = 2;
+    for( var i = 0; i < rate; ++i )
+    {
+      // Setup to draw into one of the framebuffers.
+      setFramebuffer(framebuffers[i % 2], w, h);
+
+      // Draw the rectangle.
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+      // for the next draw, use the texture we just rendered to.
+      gl.bindTexture( gl.TEXTURE_2D, textures[i % 2] );
+    }
+    // finally draw the result to the canvas.
+    setFramebuffer(null, canvas.width, canvas.height);
+
+    // Draw the rectangle.
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    requestAnimFrame( Anim );
+  }
+
+  var lastTime = new Date().getTime();
+  requestAnimFrame( Anim );
 });
 
 
-
 // Fills the buffer with the values that define a rectangle.
-function setRectangle(gl, x, y, width, height) {
+function setRectangle( gl, x, y, width, height ) {
   var x1 = x;
   var x2 = x + width;
   var y1 = y;
@@ -80,10 +261,8 @@ function setRectangle(gl, x, y, width, height) {
      x2, y2]), gl.STATIC_DRAW);
 }
 
-// Returns a random integer from 0 to range - 1.
-function randomInt(range) {
-  return Math.floor(Math.random() * range);
-}
+
+
 
 </script>
 
@@ -91,12 +270,13 @@ function randomInt(range) {
 <!-- vertex shader -->
 <script id="2d-vertex-shader" type="x-shader/x-vertex">
 attribute vec2 a_position;
+attribute vec2 a_texCoord;
 
 uniform vec2 u_resolution;
 
+varying vec2 v_texCoord;
+
 void main() {
-
-
    // convert the rectangle from pixels to 0.0 to 1.0
    vec2 zeroToOne = a_position / u_resolution;
 
@@ -106,18 +286,62 @@ void main() {
    // convert from 0->2 to -1->+1 (clipspace)
    vec2 clipSpace = zeroToTwo - 1.0;
 
-   gl_Position = vec4( clipSpace * vec2(1, -1), 0, 1 );
+   gl_Position = vec4(clipSpace, 0, 1);
+
+   // pass the texCoord to the fragment shader
+   // The GPU will interpolate this value between points.
+   v_texCoord = a_texCoord;
 }
+
 </script>
 <!-- fragment shader -->
 <script id="2d-fragment-shader" type="x-shader/x-fragment">
 precision mediump float;
 
-uniform vec4 u_color;
+// our texture
+uniform sampler2D u_image;
+uniform vec2 u_textureSize;
+
+uniform float u_kernel[9];
+uniform vec2 u_diffusion;
+uniform float u_kill;
+uniform float u_feed;
+uniform float u_timeDelta;
+uniform float u_spaceDelta;
+
+// the texCoords passed in from the vertex shader.
+varying vec2 v_texCoord;
 
 void main() {
-   gl_FragColor = u_color;
+  vec2 onePixel = vec2(1.0, 1.0) / u_textureSize;
+
+  // Laplacian is difference between the this sample and the average neighbour.
+  vec4 laplacian =
+     texture2D(u_image, v_texCoord + onePixel * vec2(-1, -1)) * u_kernel[0] +
+     texture2D(u_image, v_texCoord + onePixel * vec2( 0, -1)) * u_kernel[1] +
+     texture2D(u_image, v_texCoord + onePixel * vec2( 1, -1)) * u_kernel[2] +
+     texture2D(u_image, v_texCoord + onePixel * vec2(-1,  0)) * u_kernel[3] +
+     texture2D(u_image, v_texCoord + onePixel * vec2( 0,  0)) * u_kernel[4] +
+     texture2D(u_image, v_texCoord + onePixel * vec2( 1,  0)) * u_kernel[5] +
+     texture2D(u_image, v_texCoord + onePixel * vec2(-1,  1)) * u_kernel[6] +
+     texture2D(u_image, v_texCoord + onePixel * vec2( 0,  1)) * u_kernel[7] +
+     texture2D(u_image, v_texCoord + onePixel * vec2( 1,  1)) * u_kernel[8] ;
+
+  vec4 sample = texture2D(u_image, v_texCoord );
+
+  float r = sample.r 
+            + ( u_diffusion.r * laplacian.r * u_spaceDelta
+            - sample.r * sample.g * sample.g
+            + u_feed * ( 1.0 - sample.r ) ) * u_timeDelta;
+  float g = sample.g 
+            + ( u_diffusion.g * laplacian.g * u_spaceDelta 
+            + sample.r * sample.g * sample.g 
+            - ( u_kill + u_feed ) * sample.g ) * u_timeDelta;
+  float b = sample.b;
+
+  gl_FragColor = vec4( r, g, b, 1.0);
 }
+
 </script>
 
 
