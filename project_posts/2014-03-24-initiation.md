@@ -4,7 +4,7 @@ First attempt at running a reaction-diffusion simulation.
 
 The green areas are the active organism.  Red areas represent the food that the reaction consumes.
 
-![Example Image](../project_images/rd_red_green.jpg?raw=true "Reaction Diffusion")
+![Reaction Diffusion](../project_images/rd_red_green.jpg?raw=true "Reaction Diffusion")
 
 The system can be watched evolving inside the browser.
 

@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Experiment 3</title>
+<title>Experiment 4</title>
 <script type="text/javascript" src="jquery-2.1.0.js"></script>
 <script type="text/javascript" src="webgl-utils.js"></script>
 <script type="text/javascript">
@@ -184,7 +184,7 @@ $(window).load( function()
   gl.uniform1f( feedLocation, 0.037 );
 
   // Time-step
-  gl.uniform1f( timeDeltaLocation, 5.2 );
+  gl.uniform1f( timeDeltaLocation, 5.0 );
   
   // Space delta.
   gl.uniform1f( spaceDeltaLocation, 0.2 );
@@ -203,28 +203,73 @@ $(window).load( function()
 
   // Set a rectangle the same size as the image.
   setRectangle(gl, 0, 0, w, h);
+  
 
   function setFramebuffer(fbo, width, height) {
     // make this the framebuffer we are rendering to.
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
 
-    // Tell the shader the resolution of the framebuffer.
-    gl.uniform2f(resolutionLocation, width, height);
-
     // Tell webgl the viewport setting needed for framebuffer.
     gl.viewport(0, 0, width, height);
   }
 
+  // Display Program - - - - - - - - - - - -
+
+  vertexShaderDisp = createShaderFromScriptElement(gl, "2d-vertex-shader");
+  fragmentShaderDisp = createShaderFromScriptElement(gl, "2d-fragment-shader-disp");
+
+  programDisp = createProgram(gl, [vertexShaderDisp, fragmentShaderDisp]);
+  gl.useProgram( programDisp );
+
+  {
+    // look up where the vertex data needs to go.
+    var positionLocation = gl.getAttribLocation(programDisp, "a_position");
+    var texCoordLocation = gl.getAttribLocation(programDisp, "a_texCoord");
+
+    var resolutionLocationDisp = gl.getUniformLocation(programDisp, "u_resolution");
+
+    // Provide texture coordinates for the rectangle.
+    var texCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        0.0,  0.0,
+        1.0,  0.0,
+        0.0,  1.0,
+        0.0,  1.0,
+        1.0,  0.0,
+        1.0,  1.0]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(texCoordLocation);
+    gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+
+    // Create a buffer for the position of the rectangle corners.
+    var buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    gl.uniform2f(resolutionLocationDisp, canvas.width, canvas.height);
+
+    // Set a rectangle the same size as the image.
+    setRectangle(gl, 0, 0, w, h);
+  }
+
+  // Do Work - - - - - - - - - - - - -
+
+  gl.useProgram( program );
   // start with the original image
   gl.bindTexture(gl.TEXTURE_2D, originalImageTexture);
 
   function Anim( time )
   {
+    // Why doesn't this work for rate 1?
     var rate = 2;
     for( var i = 0; i < rate; ++i )
     {
       // Setup to draw into one of the framebuffers.
       setFramebuffer(framebuffers[i % 2], w, h);
+
+      // Tell the shader the resolution of the framebuffer.
+      gl.uniform2f(resolutionLocation, w, h);
 
       // Draw the rectangle.
       gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -232,12 +277,18 @@ $(window).load( function()
       // for the next draw, use the texture we just rendered to.
       gl.bindTexture( gl.TEXTURE_2D, textures[i % 2] );
     }
+
+
+    gl.useProgram( programDisp );
+    gl.bindTexture( gl.TEXTURE_2D, textures[rate % 2] );
     // finally draw the result to the canvas.
     setFramebuffer(null, canvas.width, canvas.height);
 
+    gl.uniform2f(resolutionLocationDisp, w, h);
     // Draw the rectangle.
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
+    gl.useProgram( program );
     requestAnimFrame( Anim );
   }
 
@@ -344,6 +395,23 @@ void main() {
 
 </script>
 
+<!-- fragment shader -->
+<script id="2d-fragment-shader-disp" type="x-shader/x-fragment">
+precision mediump float;
+
+// our texture
+uniform sampler2D u_image;
+
+// the texCoords passed in from the vertex shader.
+varying vec2 v_texCoord;
+
+void main() {
+  vec4 sample = texture2D(u_image, v_texCoord );
+  float v = sample.g * 3.0;
+  gl_FragColor = vec4( v, v, v, 1.0);
+}
+
+</script>
 
 
     <style type="text/css">
